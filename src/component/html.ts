@@ -221,8 +221,8 @@ function applyStyles(state: RenderState, sb: StringBuilder, el: HTMLElement, add
         } else {
             const cssColor = shadowColorToCSS(state.shadowColor);
             addSpace();
-            sb.appendString(`filter: drop-shadow(3px 3px ${cssColor})`);
-            el.style.filter = `drop-shadow(3px 3px ${cssColor})`;
+            sb.appendString(`filter: drop-shadow(2px 2px ${cssColor})`);
+            el.style.filter = `drop-shadow(2px 2px ${cssColor})`;
         }
     }
 
