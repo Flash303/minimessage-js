@@ -37,6 +37,7 @@ export enum ComponentDecorationState {
 export type IComponent = {
     // Basic
     color?: string,
+    shadowColor?: number,
     extra?: (IComponent | string)[],
     text?: string,
     // Decorations
@@ -147,6 +148,15 @@ export class Component implements IComponent {
     set color(value: string | undefined) {
         this.primitive.color = value;
     }
+
+    get shadowColor(): number | undefined {
+    return this.primitive.shadowColor;
+}
+
+    set shadowColor(value: number | undefined) {
+        this.primitive.shadowColor = value;
+    }
+
 
     setColorIfUnset(value: string): void {
         if (!("color" in this.primitive)) this.primitive.color = value;

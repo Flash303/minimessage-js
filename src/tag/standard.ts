@@ -17,6 +17,7 @@ import {SelectorTagResolver} from "./impl/selector";
 import {TransitionTagResolver} from "./impl/transition";
 import {TranslatableTagResolver} from "./impl/translatable";
 import { HeadTagResolver } from "./impl/head";
+import { ShadowTagResolver } from "./impl/shadow";
 
 /**
  * Factory for tag resolvers included with MiniMessage. ``defaults()`` contains all tags that can be parsed and written
@@ -31,6 +32,10 @@ export const StandardTags = new class {
 
     color(): TagResolver {
         return ColorTagResolver.INSTANCE;
+    }
+
+    shadow(): TagResolver {
+        return ShadowTagResolver.INSTANCE;
     }
 
     decorations(decoration?: ComponentDecoration): TagResolver {
@@ -110,6 +115,7 @@ export const StandardTags = new class {
             .resolvers(
                 this.clickEvent(),
                 this.color(),
+                this.shadow(),
                 this.decorations(),
                 this.font(),
                 this.gradient(),
@@ -136,6 +142,7 @@ export const StandardTags = new class {
             .resolvers(
                 this.clickEvent(),
                 this.color(),
+                this.shadow(),
                 this.decorations(),
                 // font is excluded because we can't currently HTML-ify that info
                 this.gradient(),
