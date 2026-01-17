@@ -29,4 +29,11 @@ export namespace ColorUtil {
         return rgb2Hex([0, 1, 2].map(component) as unknown as RGB);
     }
 
+    export function argbInt(r: number, g: number, b: number, a: number): number {
+        return ((a & 0xff) << 24)
+            | ((r & 0xff) << 16)
+            | ((g & 0xff) << 8)
+            |  (b & 0xff);
+    }
+
 }

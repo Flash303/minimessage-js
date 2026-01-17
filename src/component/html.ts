@@ -1,183 +1,118 @@
-import {Component, ComponentDecoration, IComponent} from "./spec";
-import {StringBuilder} from "../util/string";
-import {ColorTagResolver} from "../tag/impl/color";
-import {bindObfuscatedText} from "../font/obf";
-import {MiniMessageInstance, CreateElementFn} from "../spec";
+import { Component, ComponentDecoration, IComponent } from "./spec";
+import { StringBuilder } from "../util/string";
+import { ColorTagResolver } from "../tag/impl/color";
+import { bindObfuscatedText } from "../font/obf";
+import { MiniMessageInstance, CreateElementFn } from "../spec";
 import { renderDefaultKeybindHTML } from "../util/renderDefaultKeybind";
 import { getHeadElement, intArrayToUUID } from "../util/renderHead";
 
-// RegExp used to identify lang placeholders
+// RegExp for language placeholders
 const LANG_PLACEHOLDER_REGEX = /%(%|(?:(\d+)\$)?s)/g;
 
-// Does some polyfills & setup, then returns the result of componentToHTML0
 export function componentToHTML(
     context: MiniMessageInstance,
     component: Component,
     output?: HTMLElement,
     createElementFn?: CreateElementFn
 ): string {
-    let doOutput: boolean = false;
-    if (typeof output !== "undefined") {
-        doOutput = true;
-        // Assume we are in browser
-        if (typeof createElementFn === "undefined") createElementFn = ((n) => document.createElement(n));
-    } else if (typeof createElementFn === "undefined") {
-        // mock HTMLElement to make code cleaner
-        createElementFn = (() => {
-            // noinspection JSUnusedLocalSymbols
-            return {
-                innerText: "",
-                style: {},
-                setAttribute(key: string, value: string): void { },
-                appendChild(child: any): void { }
-            } as unknown as HTMLElement;
-        });
+    let doOutput = !!output;
+
+    if (doOutput && !createElementFn) createElementFn = (n) => document.createElement(n);
+    else if (!createElementFn) {
+        // dummy HTMLElement for non-browser
+        createElementFn = (() => ({
+            innerText: "",
+            style: {},
+            setAttribute() {},
+            appendChild() {}
+        })) as unknown as CreateElementFn;
     }
 
     const sb = new StringBuilder();
-    componentToHTML0(context, component, sb, doOutput, output!, createElementFn!);
+    const runs: RenderRun[] = [];
+    collectRuns(context, component, {}, runs);
+    renderRuns(runs, sb, output!, createElementFn!);
+
     return sb.toString();
 }
 
-// Converts a component to HTML. This is getting kind of big, but there's some room to spare before
-// it would make sense to relocate.
-function componentToHTML0(
+type RenderState = {
+    color?: string;
+    shadowColor?: number;
+    bold?: boolean;
+    italic?: boolean;
+    underlined?: boolean;
+    strikethrough?: boolean;
+    obfuscated?: boolean;
+    font?: string;
+};
+
+type RenderRun = {
+    state: RenderState;
+    text?: string;
+    node?: HTMLElement; // sprite / head / image
+};
+
+function collectRuns(
     context: MiniMessageInstance,
     component: Component,
-    sb: StringBuilder,
-    doOutput: boolean,
-    output: HTMLElement,
-    createElementFn: CreateElementFn
-): void {
-    // We're simeltaneously writing the data to the StringBuilder and the HTMLElement.
-    // In the case where doOutput is false, all of the calls to HTMLElement are no-op.
+    parentState: RenderState,
+    runs: RenderRun[]
+) {
+    const state = mergeState(parentState, extractState(component));
 
-    // Start the opening tag.
-    const el = createElementFn("span");
-    sb.appendLeftAngleBracket().appendString("span");
-
-    // This adds declarations to the style property as appropriate.
-    let addedStyleSpace = false;
-    parseStyles(component, sb, el, () => {
-        if (addedStyleSpace) {
-            // Another declaration has already been added
-            sb.appendSpace();
-        } else {
-            // This is the first declaration that has been added
-            sb.appendString(" style=\"");
-            addedStyleSpace = true;
-        }
-    });
-    // Close the style attribute if it was ever opened
-    if (addedStyleSpace) sb.append("\"");
-
-    // This adds the data-mm-XXX attributes to the element.
-    parseAttributes(component, sb, el);
-
-    // Close the opening tag.
-    sb.appendRightAngleBracket();
-
-    // Add the plain text content. This always comes before anything else.
-    // Text that appears after a child will not be contained in this property.
+    // Text
     const text = component.getProperty("text");
-    if (!!text) {
-        el.innerText = text;
-        sb.appendString(text);
-    }
+    if (text) runs.push({ state, text });
 
-    // Render keybinds
+    // Keybinds
     const keybind = component.getProperty("keybind");
-    if (keybind) {
-        const display = renderDefaultKeybindHTML(keybind, context);
-        el.innerText = display;
-        sb.appendString(display);
-        el.classList?.add("mm-keybind");
-    }
+    if (keybind) runs.push({ state, text: renderDefaultKeybindHTML(keybind, context) });
 
-    // START Translatables
+    // Translatable
     const translate = component.getProperty("translate");
-    if (!!translate) {
-        let substitutions = component.getProperty("with");
-        if (typeof substitutions === "undefined") substitutions = [];
+    if (translate) {
+        let substitutions = component.getProperty("with") ?? [];
+        let translated: string = context.translations[translate] ?? "";
 
-        let translated: string = context.translations[translate];
-        if (!!translated) {
-            // Handle placeholders. This is just speculation, but the Mojang placeholder format seems to work like so:
-            // - %%   -> % (escaping)
-            // - %s   -> next substitution
-            // - %N$s -> Nth substitution (index starting at 1)
+        translated = translated.replace(LANG_PLACEHOLDER_REGEX, (match, arg, num) => {
+            if (arg === "%") return "%";
+            let index = arg.length > 1 ? parseInt(num) - 1 : 0;
+            return substitutions[index] ?? match;
+        });
 
-            translated = translated.replace(
-                LANG_PLACEHOLDER_REGEX,
-                (match: string, arg: string, num: string) => {
-                    if (arg === "%") return "%";
-                    let index: number = 0;
-                    if (arg.length > 1) {
-                        index = parseInt(num) - 1;
-                    }
-                    if (index < 0 || index >= substitutions!.length) return match;
-                    return substitutions![index];
-                }
-            );
-
-            // May have contained MiniMessage tags, so parsing again is required.
-            // Conveniently we can re-use our StringBuilder.
+        if (translated) {
             const parsed = context.deserialize(translated);
-            componentToHTML0(context, parsed, sb, doOutput, el, createElementFn);
+            collectRuns(context, parsed, state, runs);
         }
     }
-    // END Translatables
 
-    // Process children
+    // Extra children
     const extra = component.getProperty("extra");
-    if (!!extra) {
-        for (let child of extra) {
+    if (extra) {
+        for (const child of extra) {
             if (typeof child === "string") {
-                // Wrap plain text child in a span, because dealing with text nodes is too sad
-                const sub = createElementFn("span");
-                sub.innerText = child;
-                el.appendChild(sub);
-                sb.appendString(child);
+                runs.push({ state, text: child });
             } else {
-                const childComponent = new Component(child);
-
-                // Inherit color
-                if (component.getProperty("color") && !childComponent.getProperty("color")) {
-                    childComponent.setProperty("color", component.getProperty("color"));
-                }
-
-                // Inherit decorations
-                for (const deco of ["bold", "italic", "underlined", "strikethrough", "obfuscated"] as (keyof IComponent)[]) {
-                    if (component.getProperty(deco) && !childComponent.getProperty(deco)) {
-                        childComponent.setProperty(deco, component.getProperty(deco));
-                    }
-                }
-
-
-                componentToHTML0(context, childComponent, sb, doOutput, el, createElementFn);
+                collectRuns(context, new Component(child), state, runs);
             }
-
         }
-    } 
+    }
 
+    // Player heads / sprites
     const head = component.getProperty("player");
     if (head) {
         const hat = component.getProperty("hat") ?? true;
         let identifier: string | undefined;
 
-        if (typeof head === "string") {
-            identifier = head;
-        } else if ("id" in head) {
-            identifier = intArrayToUUID(head.id);
-        } else if ("texture" in head) {
-            identifier = head.texture;
-        }
+        if (typeof head === "string") identifier = head;
+        else if ("id" in head) identifier = intArrayToUUID(head.id);
+        else if ("texture" in head) identifier = head.texture;
 
         if (identifier) {
             const headEl = getHeadElement(identifier, hat);
-            el.classList?.add("mm-head");
 
-            const color = component.getProperty("color");
+            const color = state.color;
             if (color) {
                 const mappedColor = ColorTagResolver.mapColor(color);
                 const img = new Image();
@@ -196,109 +131,137 @@ function componentToHTML0(
                 };
             }
 
-            el.appendChild(headEl);
-        }
-    }
-
-
-    // Add closing tag
-    sb.appendString("</span>");
-
-    // If using DOM
-    if (doOutput) {
-        output.appendChild(el);
-
-        // Visual obfuscation effect if browser is detected
-        if (component.getProperty("obfuscated") === true) {
-            setTimeout(() => {
-                bindObfuscatedText(el, () => {});
-            }, 1);
+            runs.push({ state, node: headEl });
         }
     }
 }
 
-// Add data-mm-XXX attrs
-function parseAttributes(component: Component, sb: StringBuilder, el: HTMLElement): void {
-    // Add single data-mm-XXX attr
-    function withAttribute(key: Exclude<keyof IComponent, "extra">): void {
-        const value = component.getProperty(key);
-        if (typeof value === "undefined") return;
-
-        // replace uppercase chars with - (ASCII 45) followed by lowercase char
-        const attrKey = "data-mm-"
-            + key.replace(/[A-Z]/g, (match) => String.fromCharCode(45, match.charCodeAt(0) + 32));
-
-        const json = JSON.stringify(value);
-        sb.appendSpace()
-            .append(attrKey)
-            .append("=\"")
-            .append(json.replace(/["']/g, (match) => `\\${match}`))
-            .append("\"");
-        el.setAttribute(attrKey, json);
-    }
-
-    // Magic array of attributes to include.
-    // Would it maybe be better to specify the few attributes that AREN'T included? :/
-    const attrs: Exclude<keyof IComponent, "extra">[] = [
-        "obfuscated",
-        "clickEvent",
-        "hoverEvent",
-        "keybind",
-        "translate",
-        "with",
-        "selector",
-        "score",
-        "insertion",
-        "font",
-        "nbt",
-        "block",
-        "entity",
-        "storage",
-        "interpret",
-        "separator"
-    ];
-    for (let attr of attrs) withAttribute(attr);
+function extractState(component: Component): RenderState {
+    return {
+        color: component.getProperty("color"),
+        shadowColor: component.getProperty("shadowColor"),
+        bold: component.getProperty("bold"),
+        italic: component.getProperty("italic"),
+        underlined: component.getProperty("underlined"),
+        strikethrough: component.getProperty("strikethrough"),
+        obfuscated: component.getProperty("obfuscated"),
+        font: component.getProperty("font")
+    };
 }
 
-// Add style declarations, e.g. bold -> style="font-weight: bold"
-// The addSpace() method is stateful and described further in the parent function
-function parseStyles(component: Component, sb: StringBuilder, el: HTMLElement, addSpace: (() => void)): void {
-    let color = component.getProperty("color");
-    if (!!color) {
+function mergeState(parent: RenderState, child: RenderState): RenderState {
+    return {
+        color: child.color ?? parent.color,
+        shadowColor: child.shadowColor ?? parent.shadowColor,
+
+        bold: child.bold !== undefined ? child.bold : parent.bold,
+        italic: child.italic !== undefined ? child.italic : parent.italic,
+        underlined: child.underlined !== undefined ? child.underlined : parent.underlined,
+        strikethrough: child.strikethrough !== undefined ? child.strikethrough : parent.strikethrough,
+        obfuscated: child.obfuscated !== undefined ? child.obfuscated : parent.obfuscated,
+
+        font: child.font ?? parent.font
+    };
+}
+
+function renderRuns(
+    runs: RenderRun[],
+    sb: StringBuilder,
+    output: HTMLElement,
+    createElementFn: CreateElementFn
+) {
+    for (const run of runs) {
+        const el = createElementFn("span");
+        sb.appendLeftAngleBracket().appendString("span");
+
+        let addedStyle = false;
+        const addSpace = () => {
+            if (!addedStyle) {
+                sb.appendString(' style="');
+                addedStyle = true;
+            } else sb.appendSpace();
+        };
+
+        applyStyles(run.state, sb, el, addSpace);
+
+        if (addedStyle) sb.appendString('"');
+        sb.appendRightAngleBracket();
+
+        if (run.text) {
+            el.innerText = run.text;
+            sb.appendString(run.text);
+        } else if (run.node) {
+            el.appendChild(run.node);
+        }
+
+        sb.appendString("</span>");
+        if (output) {
+            output.appendChild(el);
+
+            if (run.state.obfuscated) {
+                setTimeout(() => bindObfuscatedText(el, () => {}), 1);
+            }
+        }
+    }
+}
+
+function applyStyles(state: RenderState, sb: StringBuilder, el: HTMLElement, addSpace: () => void) {
+    if (state.color) {
         addSpace();
-        color = ColorTagResolver.mapColor(color);
-        sb.appendString("color: ").appendString(color).appendSemicolon();
-        el.style.color = color;
+        const mapped = ColorTagResolver.mapColor(state.color);
+        sb.appendString("color: ").appendString(mapped).appendSemicolon();
+        el.style.color = mapped;
     }
 
-    let anyDecorationExplicitlyFalse: boolean = false;
-    let noDecorationExplicitlyTrue: boolean = true;
-
-    function withDecoration(key: ComponentDecoration, style: string, styleKey: keyof CSSStyleDeclaration, styleValue: string): void {
-        const value = component.getProperty(key);
-        if (typeof value === "undefined") return;
-        if (value) {
-            noDecorationExplicitlyTrue = false;
+    if (state.shadowColor !== undefined) {
+        if (state.shadowColor === 0) {
             addSpace();
-            sb.appendString(style).appendSemicolon();
-            // @ts-ignore
-            el.style[styleKey] = styleValue;
+            sb.appendString("filter: none;");
+            el.style.filter = "none";
         } else {
-            anyDecorationExplicitlyFalse = true;
+            const cssColor = shadowColorToCSS(state.shadowColor);
+            addSpace();
+            sb.appendString(`filter: drop-shadow(2px 2px ${cssColor})`);
+            el.style.filter = `drop-shadow(2px 2px ${cssColor})`;
         }
     }
 
-    // How clean! Love this! :)
-    withDecoration("bold", "font-weight: bold", "fontWeight", "bold");
-    withDecoration("italic", "font-style: italic", "fontStyle", "italic");
-    withDecoration("underlined", "text-decoration: underline", "textDecoration", "underline");
-    withDecoration("strikethrough", "text-decoration: line-through", "textDecoration", "line-through");
+    const decorations: [keyof Pick<RenderState, "bold" | "italic" | "underlined" | "strikethrough">, string, keyof CSSStyleDeclaration, string][] = [
+        ["bold", "font-weight: bold", "fontWeight", "bold"],
+        ["italic", "font-style: italic", "fontStyle", "italic"],
+        ["underlined", "text-decoration: underline", "textDecoration", "underline"],
+        ["strikethrough", "text-decoration: line-through", "textDecoration", "line-through"]
+    ];
 
-    // Reset decorations if any are explicitly false and none are explicitly true.
-    if (anyDecorationExplicitlyFalse && noDecorationExplicitlyTrue) {
+
+    if (state.bold) {
         addSpace();
-        sb.appendString("font-weight: normal; text-decoration: none; filter: none;");
-        el.style.fontWeight = "normal";
-        el.style.textDecoration = "none";
+        sb.appendString("font-weigth: bold;");
+        el.style.fontWeight = "bold";
     }
+
+    if (state.italic) {
+        addSpace();
+        sb.appendString("font-style: italic;");
+        el.style.fontStyle = "italic";
+    }
+
+    let textDecorations: string[] = [];
+    if (state.underlined) textDecorations.push("underline");
+    if (state.strikethrough) textDecorations.push("line-through");
+
+    if (textDecorations.length > 0) {
+        addSpace();
+        const value = textDecorations.join(" ");
+        sb.appendString(`text-decoration: ${value};`);
+        el.style.textDecoration = value;
+    }
+}
+
+function shadowColorToCSS(argb: number): string {
+    const a = ((argb >>> 24) & 0xff) / 255;
+    const r = (argb >>> 16) & 0xff;
+    const g = (argb >>> 8) & 0xff;
+    const b = argb & 0xff;
+    return `rgb(${r} ${g} ${b} / ${a})`;
 }
