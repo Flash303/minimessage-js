@@ -75,7 +75,7 @@ test("serialize", () => {
 test("html escaping", () => {
     const component = Component.text("this is <p>NOT</p> HTML!");
     const html = mini.toHTML(component);
-    expect(html).toContain(`this is &lt;p&gtNOT&lt;/p&gt HTML!`);
+    expect(html).toContain(`this is &lt;p&gt;NOT&lt;/p&gt; HTML!`);
 });
 
 test("custom translations", () => {
