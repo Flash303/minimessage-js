@@ -1,89 +1,154 @@
-import { Test, runTests, assertEquals } from "./junit";
-import MiniMessage from "../src";
-import {IComponent} from "../src/component/spec";
+import {DOMParser} from "linkedom";
+import {JsonComponent} from "../src/serializer/json/types";
+import {
+    Component, HoverEvent,
+    JsonComponentSerializer, Key,
+    MiniMessage, NamedTextColor,
+    PlainTextComponentSerializer, TextColor, TextDecoration,
+    Translations
+} from "../src";
 
-class MiniMessageTest {
+//
 
-    @Test()
-    basic() {
-        const mm = MiniMessage.miniMessage();
-        const src = `<green>Green and <b>bold</b> text</green>`;
-        const component = mm.deserialize(src);
+const mini = MiniMessage.builder()
+    .strict(true)
+    .build();
 
-        const expected = {
-            text: "Green and ",
-            extra: [
-                {
-                    text: "bold",
-                    bold: true
-                },
-                " text"
-            ],
-            color: "green"
-        };
-        assertEquals(component.toJSON(), expected);
-    }
+const check = ((component: Component, expected: JsonComponent)=> {
+    const json = JsonComponentSerializer.json().serialize(component);
+    expect(json).toMatchObject(expected);
+});
 
-    @Test()
-    reset() {
-        const mm = MiniMessage.builder().build();
-        const src = `<red>Red text<reset/>Reset text`;
-        const component = mm.deserialize(src);
+const renderToDom = ((mini: MiniMessage, component: Component) => {
+    const document = (new DOMParser()).parseFromString(``, `text/html`);
+    const container = document.createElement(`span`);
+    // @ts-ignore
+    mini.toHTML(component, container, (tag) => document.createElement(tag));
+    return container;
+});
 
-        const expected = {
-            extra: [
-                { text: 'Red text', color: 'red' },
-                'Reset text'
-            ]
-        };
+//
 
-        assertEquals(component.toJSON(), expected);
-    }
+test("deserialize", () => {
+    let component: Component;
 
-    @Test()
-    gradient() {
-        const mm = MiniMessage.miniMessage();
-        const src = `<gradient:dark_red:dark_blue>awesome gradient</gradient>`;
-        const component = mm.deserialize(src);
+    component = mini.deserialize("<gold>this is gold and <b>bold</b>!</gold>");
+    check(component, {
+        text: "this is gold and ",
+        color: "gold",
+        extra: [
+            {
+                text: "bold",
+                bold: true
+            },
+            "!"
+        ]
+    });
+});
 
-        const expected = {
-            extra: [
-                { text: 'a', color: '#AA0000' },
-                { text: 'w', color: '#9F000B' },
-                { text: 'e', color: '#930017' },
-                { text: 's', color: '#880022' },
-                { text: 'o', color: '#7D002D' },
-                { text: 'm', color: '#710039' },
-                { text: 'e', color: '#660044' },
-                { text: ' ', color: '#5B004F' },
-                { text: 'g', color: '#4F005B' },
-                { text: 'r', color: '#440066' },
-                { text: 'a', color: '#390071' },
-                { text: 'd', color: '#2D007D' },
-                { text: 'i', color: '#220088' },
-                { text: 'e', color: '#170093' },
-                { text: 'n', color: '#0B009F' },
-                { text: 't', color: '#0000AA' }
-            ]
-        };
+test("serialize", () => {
+    let rich: string;
+    let component: Component;
 
-        assertEquals(component.toJSON(), expected);
-    }
+    //
 
-    // For all test cases, the output is EXTREMELY CLOSE. However checking strict equality will cause the test to fail
-    // due to tiny differences, like components without text having an empty string field rather than no field,
-    // and literal colors like "green" always being preserved rather than hexed.
-    private async getOfficial(src: string): Promise<IComponent> {
-        return fetch(`https://webui.advntr.dev/api/mini-to-json`, {
-            method: "POST",
-            body: JSON.stringify({
-                miniMessage: src,
-                placeholders: { stringPlaceholders: {} }
-            })
-        }).then((r) => r.json())
-            .then<IComponent>((json) => json as unknown as IComponent);
-    }
+    component = Component.empty()
+        .color(NamedTextColor.GOLD)
+        .append(Component.text("this is gold and "))
+        .append(Component.text("bold").decorate(TextDecoration.BOLD))
+        .append(Component.text("!"));
 
-}
+    rich = mini.serialize(component);
+    expect(rich).toBe(`<gold>this is gold and <b>bold</b>!</gold>`);
 
-runTests(MiniMessageTest);
+    //
+
+    component = Component.empty()
+        .hoverEvent(HoverEvent.showText(Component.text("tooltip").color(NamedTextColor.DARK_PURPLE)))
+        .color(TextColor.fromHexString("#aabb00"))
+        .append(Component.translatable("block.minecraft.diamond_block"));
+
+    rich = mini.serialize(component);
+    expect(rich).toBe(`<#aabb00><hover:show_text:'<dark_purple>tooltip</dark_purple>'><lang:block.minecraft.diamond_block/></hover></#aabb00>`);
+});
+
+test("html escaping", () => {
+    const component = Component.text("this is <p>NOT</p> HTML!");
+    const html = mini.toHTML(component);
+    expect(html).toContain(`this is &lt;p&gtNOT&lt;/p&gt HTML!`);
+});
+
+test("custom translations", () => {
+    let tx: Translations;
+
+    const run = ((key: string, args: (string | Component)[], out: string) => {
+        const boxed: Component[] = new Array(args.length);
+        for (let i = 0; i < args.length; i++) {
+            const arg = args[i];
+            if (typeof arg === "object") {
+                boxed[i] = arg;
+            } else {
+                boxed[i] = Component.text(`${arg}`);
+            }
+        }
+        const translated = tx.translate(key, boxed);
+        const plain = PlainTextComponentSerializer.plainText().serialize(translated);
+        expect(plain).toBe(out);
+    });
+
+    tx = Translations.of({
+        "test.one": "hello %s!",
+        "test.two": "greetings to %2$s from %1$s!"
+    });
+
+    run(
+        "test.one",
+        ["world"],
+        "hello world!"
+    );
+
+    run(
+        "test.two",
+        ["space", "you"],
+        "greetings to you from space!"
+    );
+});
+
+test("translations in rendered HTML", () => {
+    const m = MiniMessage.builder()
+        .translations({ "library.author": "Xavier %s" })
+        .strict(true)
+        .build();
+
+    const component = m.deserialize("made with love by <lang:library.author:Pedraza/>!");
+    const element = renderToDom(m, component);
+    expect(element.innerText).toBe("made with love by Xavier Pedraza!");
+});
+
+test("tricky", () => {
+   const component = mini.deserialize(`<rainbow>ra<i>i</i>n<b>b</b>ow</rainbow>`);
+   const text = PlainTextComponentSerializer.plainText().serialize(component);
+   expect(text).toBe(`rainbow`);
+});
+
+test("keys", () => {
+    let key: Key;
+
+    key = Key.key("test_key");
+    expect(      key.namespace()).toBe("minecraft");
+    expect(          key.value()).toBe("test_key");
+    expect(key.asMinimalString()).toBe("test_key");
+    expect(       key.asString()).toBe("minecraft:test_key");
+    expect(       key.toString()).toBe("minecraft:test_key")
+    expect(      `${key}`).toBe("minecraft:test_key");
+    expect(             "" + key).toBe("minecraft:test_key");
+
+    key = Key.key("foo:test_key");
+    expect(      key.namespace()).toBe("foo");
+    expect(          key.value()).toBe("test_key");
+    expect(key.asMinimalString()).toBe("foo:test_key");
+    expect(       key.asString()).toBe("foo:test_key");
+    expect(       key.toString()).toBe("foo:test_key")
+    expect(      `${key}`).toBe("foo:test_key");
+    expect(             "" + key).toBe("foo:test_key");
+});

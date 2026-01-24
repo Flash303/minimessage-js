@@ -1,19 +1,22 @@
 {
   "compilerOptions": {
-    "incremental": false,
-    "target": "es6",
-    "module": "commonjs",
-    "rootDir": "./src",
-    "declaration": true,
-    "outDir": "./dist",
-    "declarationDir": "./types",
-    "allowSyntheticDefaultImports": true,
+    "target": "esnext",
+    "module": "esnext",
+    "moduleResolution": "node",
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "strict": true,
     "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "sourceMap": true,
+    "outDir": "./dist",
+    "declaration": true,
+    "declarationDir": "./types"
   },
+  "include": ["src/**/*"],
   "exclude": [
-    "node_modules", "types", "dist"
+    "node_modules",
+    "dist",
+    "types"
   ]
 }

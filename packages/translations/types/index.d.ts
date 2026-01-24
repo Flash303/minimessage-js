@@ -1,49 +1,16 @@
-import {Locale} from "./locales";
+import { Locale } from "./locales";
 
-/**
- * The content of a lang file, e.g. ``en_us.json``.
- * The keys are a translatable key, and the values are the translated plain text with optional placeholders (%s).
- */
-type TranslationMap = {
-    [key: string]: string
+type TranslationData = {
+    readonly [key: string]: string;
 };
 
-/**
- * @see get
- * @see list
- * @see has
- */
-interface ITranslations {
-
-    /**
-     * Lists all known locale strings.
-     * @see list
-     */
+export interface MinecraftTranslations {
+    readonly version: string;
     list(): Locale[];
-    /**
-     * Checks if the given locale name points to a valid locale.
-     * @param key The locale string (e.g. ``en_us``).
-     */
-    has(key: Locale | string): boolean;
-
-    /**
-     * Gets the translation map for the given locale asynchronously.
-     * Throws if locale does not exist.
-     * @param key The locale string (e.g. ``en_us``).
-     * @see get
-     */
-    getAsync(key: Locale | string): Promise<TranslationMap>;
-
-    /**
-     * Gets the translation map for the given locale.
-     * Throws if locale does not exist.
-     * @param key The locale string (e.g. ``en_us``).
-     * @see getAsync
-     */
-    get(key: Locale | string): TranslationMap;
-
+    get(locale: Locale): TranslationData;
+    get(locale: string): TranslationData | null;
 }
 
-declare const Translations: ITranslations;
-
-export = Translations;
+declare const MinecraftTranslations: MinecraftTranslations;
+export default MinecraftTranslations;
+export { Locale };

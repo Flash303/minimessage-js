@@ -1,45 +1,40 @@
 # @minimessage-js/fetch-translations
+Fetches Minecraft: Java Edition client translation data from the internet,
+ready for use in ``minimessage-js``.
 
-Provides vanilla translations for use in [minimessage-js](https://www.npmjs.com/package/minimessage-js)
-by using HTTP requests as needed. This is unlike [@minimessage-js/translations](https://www.npmjs.com/package/@minimessage-js/translations),
-which comes bundled with *every* translation. They are designed to be
-API compatible, with the main difference being that ``get`` will heavily block.
-``getAsync`` is highly preferred.
+> [!TIP]
+> For synchronous access to translation data, use ``@minimessage-js/translations``.
 
-Unlike ``@minimessage-js/translations``, this package offers a UMD build. The other
-package does not offer one because the idea of using it in a browser is repulsive.
-When using in a browser, you can access the library using the global constant
-``MiniMessageTranslations``.
-
-Another difference is that ``get``/``getAsync`` is not guaranteed to throw if you provide
-an unrecognized lang string. It will attempt to fetch the data from the API anyways, and throw
-only if it is not found. ``has``/``list`` can still be used for basic validation.
+> [!IMPORTANT]
+> This library relies on ``piston-meta.mojang.com``,
+> ``piston-data.mojang.com`` and ``resources.download.minecraft.net``.
+> Any outages or major changes with respect to these services
+> can cause this library to break.
 
 ## Usage
-```js
-const MiniMessage = require("minimessage-js");
-const MiniMessageTranslations = require("@minimessage-js/fetch-translations");
+```ts
+import MinecraftTranslations from "@minimessage-js/fetch-translations";
 
-(async () => {
-    // Fetch American English translations
-    // This is memoised, so subsequent calls complete instantly.
-    // You can also use "get", but it's a really bad idea.
-    const english = await MiniMessageTranslations.getAsync("en-us");
-    
-    const mm = MiniMessage.builder()
-        // Add American English translations
-        .translations(english)
-        .build();
+// Fetches the list of valid locale keys
+MinecraftTranslations.list(); // Promise<string[]>
 
-    const component = mm.deserialize(`<lang:block.minecraft.diamond_block>`);
-    // { translate: "block.minecraft.diamond_block" }
-
-    const html = MiniMessage.toHTML(component);
-    // <span>Block of Diamond</span>
-})().catch(console.error);
+// Retrieves translation data
+MinecraftTranslations.get("en_us"); // Promise<Record<string, string>>
 ```
 
-## Dependencies
-- ``sync-request`` : To allow ``get`` to work on Node. Browsers use sync
-  ``XMLHttpRequest`` and this dependency is excluded from the browser build. Both
-  platforms support ``getAsync`` without blocking.
+## License
+```text
+Copyright 2026 Xavier Pedraza
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+    
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+```
