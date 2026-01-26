@@ -1,6 +1,6 @@
 {
   "name": "@minimessage-js/fetch-translations",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Fetches MC:JE client translations",
   "type": "module",
   "main": "dist/index.js",
