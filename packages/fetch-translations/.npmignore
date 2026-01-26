@@ -1,5 +1,6 @@
 .gitignore
 node_modules/
 src/
+tests/
 tsconfig.json
 jest.config.ts
