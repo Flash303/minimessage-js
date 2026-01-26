@@ -37,7 +37,7 @@ const component = mini.deserialize(`<rainbow>hello world!</rainbow>`);
 #### CommonJS
 ```html
 <span id="output"></span>
-<script src="minimessage.cjs.js"></script>
+<script src="minimessage.umd.js"></script>
 <script>
     // All exports are exposed in the "adventure" global
     const { MiniMessage } = window.adventure;
