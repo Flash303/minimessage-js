@@ -28,7 +28,18 @@ export class ColorTagResolver implements TagResolver {
 
     static mapColor(name: string): string {
         if (name.length < 1) throw new Error("Color is an empty string");
-        if (name.charCodeAt(0) === 35) return name; // hex color
+
+        // Hex color
+        if (name.charCodeAt(0) === 35) { // '#'
+            // #rgb → #rrggbb
+            if (name.length === 4) {
+                const r = name.charAt(1);
+                const g = name.charAt(2);
+                const b = name.charAt(3);
+                return `#${r}${r}${g}${g}${b}${b}`.toLowerCase();
+            }
+            return name.toLowerCase();
+        }
 
         const ret = COLOR_MAP[name];
         if (typeof ret === "undefined") return "#ffffff";
@@ -38,29 +49,40 @@ export class ColorTagResolver implements TagResolver {
     has(name: string): boolean {
         if (name === "color") return true;
         if (name in COLOR_MAP) return true;
-        // hex
-        if (name.length !== 7) return false;
-        if (name.charCodeAt(0) !== 35) return false; // #
-        let c: number;
-        for (let i=1; i < 7; i++) {
-            c = name.charCodeAt(i);
-            if ( c < 48 || c > 102) return false;
-            if ( c <= 57          ) continue; // 0 - 9
-            if (97 <= c           ) continue; // a - z
-            if (65 <= c && c <= 70) continue; // A - Z
+
+        // Hex colors: #rgb or #rrggbb
+        if (name.charCodeAt(0) !== 35) return false; // '#'
+
+        if (name.length !== 4 && name.length !== 7) return false;
+
+        for (let i = 1; i < name.length; i++) {
+            const c = name.charCodeAt(i);
+
+            // 0-9
+            if (c >= 48 && c <= 57) continue;
+            // A-F
+            if (c >= 65 && c <= 70) continue;
+            // a-f
+            if (c >= 97 && c <= 102) continue;
+
             return false;
         }
         return true;
     }
 
     resolve(name: string, args: ArgumentQueue, ctx: TagResolverContext): Tag | null {
-        // assume that has(name) has already validated the input
         let value: string = name;
+
         if (name === "color") {
             if (!args.hasNext()) return null;
             value = args.pop().lowerValue;
         }
-        return Tag.modify((component: Component) => { component.color = value; });
+
+        const mapped = ColorTagResolver.mapColor(value);
+
+        return Tag.modify((component: Component) => {
+            component.color = mapped;
+        });
     }
 
 }

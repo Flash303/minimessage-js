@@ -97,11 +97,10 @@ export function getHeadElement(
   size = 16
 ): HTMLImageElement {
   const img = document.createElement("img");
-  img.style.width = "1em";
-  img.style.height = "1em";
+  img.style.width = "0.95rem";
+  img.style.height = "0.95rem";
   img.style.imageRendering = "pixelated";
   img.style.display = "inline-block";
-  img.style.verticalAlign = "-7%";
 
   if (uuidRegex.test(identifier)) {
     renderUuidHead(identifier, img, showHat, size);

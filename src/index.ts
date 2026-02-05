@@ -82,24 +82,35 @@ class MiniMessageInstanceImpl implements MiniMessageInstance {
 
         // Used for when a Modify tag is closed, but also during <reset> in which all open tags on the stack are closed.
         function popModification(key: string, position?: number): void {
-            const entry = stack.pop(key, strict, position);
-            if (entry === null) return;
-            const [ tag, children ] = entry;
-
-            let textContent: string | null = null;
-            if (children.length > 0) {
-                let first = children[0];
-                if (typeof first === "object" && first.isOnlyText()) first = (first.getProperty("text") || "");
-                if (typeof first === "string") {
-                    textContent = first;
-                    children.splice(0, 1);
+            while (true) {
+                const topTag = stack.peekTag();
+                if (topTag === null) {
+                    if (strict) throw new Error(`Expected matching start tag for </${key}> @ ${position}`);
+                    return;
                 }
-            }
 
-            const component: Component = (!!textContent) ? Component.text(textContent) : Component.empty();
-            for (let child of children) component.appendChild(child);
-            tag.apply(component, 0);
-            appendChildToHighest(component);
+                const entry = stack.pop(topTag, false, position)!;
+                const [tag, children] = entry;
+
+                // Build component from this tag
+                let textContent: string | null = null;
+                if (children.length > 0) {
+                    let first = children[0];
+                    if (typeof first === "object" && first.isOnlyText()) first = (first.getProperty("text") || "");
+                    if (typeof first === "string") {
+                        textContent = first;
+                        children.splice(0, 1);
+                    }
+                }
+
+                const component: Component = (!!textContent) ? Component.text(textContent) : Component.empty();
+                for (let child of children) component.appendChild(child);
+                tag.apply(component, 0);
+
+                appendChildToHighest(component);
+
+                if (topTag === key) break; // stop once the requested tag is closed
+            }
         }
 
         // The Parser emits events as it digests the input steam. In fact, this whole package COULD be a streaming
