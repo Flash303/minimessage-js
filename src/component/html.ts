@@ -112,23 +112,8 @@ function collectRuns(
         if (identifier) {
             const headEl = getHeadElement(identifier, hat);
 
-            const color = state.color;
-            if (color) {
-                const mappedColor = ColorTagResolver.mapColor(color);
-                const img = new Image();
-                img.crossOrigin = "anonymous";
-                img.src = (headEl as HTMLImageElement).src;
-                img.onload = () => {
-                    const canvas = document.createElement("canvas");
-                    canvas.width = img.width;
-                    canvas.height = img.height;
-                    const ctx = canvas.getContext("2d")!;
-                    ctx.drawImage(img, 0, 0);
-                    ctx.globalCompositeOperation = "multiply";
-                    ctx.fillStyle = mappedColor;
-                    ctx.fillRect(0, 0, canvas.width, canvas.height);
-                    (headEl as HTMLImageElement).src = canvas.toDataURL();
-                };
+            if (state.color) {
+                headEl.dataset.tintColor = ColorTagResolver.mapColor(state.color);
             }
 
             runs.push({ state, node: headEl });
@@ -236,7 +221,7 @@ function applyStyles(state: RenderState, sb: StringBuilder, el: HTMLElement, add
 
     if (state.bold) {
         addSpace();
-        sb.appendString("font-weigth: bold;");
+        sb.appendString("font-weight: bold;");
         el.style.fontWeight = "bold";
     }
 

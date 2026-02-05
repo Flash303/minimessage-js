@@ -1,3 +1,5 @@
+import { playerNameRegex, uuidRegex } from "./head";
+
 export interface HeadProvider {
   name: string;
   supportsUsername: boolean;
@@ -14,6 +16,17 @@ export const VzgeProvider: HeadProvider = {
   }
 };
 
+export const CrafatarProvider: HeadProvider = {
+  name: "crafatar",
+  supportsUsername: false,
+
+  getUrl(uuid: string, size: number, showHat: boolean) {
+    return showHat
+      ? `https://avatars.cloudhaven.gg/avatars/${uuid}?size=${size}`
+      : `https://avatars.cloudhaven.gg/avatars/${uuid}?size=${size}&overlay`;
+  }
+};
+
 export const McHeadsProvider: HeadProvider = {
   name: "mc-heads",
   supportsUsername: false,
@@ -24,3 +37,9 @@ export const McHeadsProvider: HeadProvider = {
       : `https://mc-heads.net/avatar/${uuid}/${size}/nohelm`;
   }
 };
+
+export const HEAD_PROVIDERS: HeadProvider[] = [
+  VzgeProvider,
+  CrafatarProvider,
+  McHeadsProvider
+];

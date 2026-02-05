@@ -24,7 +24,10 @@ const HEAD_PROVIDERS: HeadProvider[] = [
   McHeadsProvider
 ];
 
-const CACHE_EXPIRY_MS = 20 * 60 * 1000; // 20 minutes
+const USERNAME_PROVIDERS = HEAD_PROVIDERS.filter(p => p.supportsUsername);
+const UUID_ONLY_PROVIDERS = HEAD_PROVIDERS.filter(p => !p.supportsUsername);
+
+const CACHE_EXPIRY_MS = 20 * 60 * 1000;
 
 const headCache = new Map<string, HeadCacheEntry>();
 const usernameCache = new Map<string, string>(); // username -> uuid ("" = not found)
@@ -40,7 +43,7 @@ async function processQueue() {
   while (REQUEST_QUEUE.length > 0) {
     const task = REQUEST_QUEUE.shift()!;
     await task();
-    await new Promise(r => setTimeout(r, 200)); // ~5 req/sec
+    await new Promise(r => setTimeout(r, 200));
   }
 
   isProcessingQueue = false;
@@ -61,36 +64,40 @@ export function getHeadElement(
   img.style.width = "1em";
   img.style.height = "1em";
   img.style.imageRendering = "pixelated";
+  img.style.display = "inline-block";
+  img.style.verticalAlign = "-7%"
 
   if (uuidRegex.test(identifier)) {
-    renderHead(identifier, img, showHat, size);
+    renderUuidHead(identifier, img, showHat, size);
   } else if (playerNameRegex.test(identifier)) {
     renderUsernameHead(identifier, img, showHat, size);
   } else if (identifier.includes("/") || identifier.startsWith("minecraft:")) {
-    img.src = textureSprite;
+    setImageSource(img, textureSprite)
   } else {
-    img.src = errorSprite;
+    setImageSource(img, errorSprite)
   }
 
   return img;
 }
 
-function renderHead(
-  identifier: string,
+function renderUuidHead(
+  uuid: string,
   img: HTMLImageElement,
   showHat: boolean,
   size: number
 ) {
-  const cacheKey = `${identifier}:${showHat}:${size}`;
+  const cacheKey = `${uuid}:${showHat}:${size}`;
   const cached = headCache.get(cacheKey);
 
   if (cached && Date.now() - cached.timestamp < CACHE_EXPIRY_MS) {
-    img.src =
-      cached.state === "cached"
-        ? cached.file
-        : cached.state === "error"
-        ? errorSprite
-        : spinnerAnimation;
+    if (cached.state === "cached") {
+      const reload = new Image();
+      reload.onload = () => setImageSource(img, cached.file);
+      reload.onerror = () => setImageSource(img, errorSprite);
+      reload.src = cached.file;
+    } else {
+      setImageSource(img, cached.state === "error" ? errorSprite : spinnerAnimation);
+    }
     return;
   }
 
@@ -100,7 +107,7 @@ function renderHead(
     timestamp: Date.now()
   });
 
-  img.src = spinnerAnimation;
+  img.src = `${spinnerAnimation}?t=${Date.now()}`;
 
   if (fetchTimers.has(cacheKey)) {
     clearTimeout(fetchTimers.get(cacheKey));
@@ -108,14 +115,74 @@ function renderHead(
 
   const timer = window.setTimeout(() => {
     queueRequest(async () => {
-      tryProviders(identifier, img, showHat, size, cacheKey, 0);
+      tryProviderList(UUID_ONLY_PROVIDERS, uuid, img, showHat, size, cacheKey, 0);
     });
   }, 300);
 
   fetchTimers.set(cacheKey, timer);
 }
 
-function tryProviders(
+function renderUsernameHead(
+  username: string,
+  img: HTMLImageElement,
+  showHat: boolean,
+  size: number
+) {
+  const cacheKey = `${username}:${showHat}:${size}:username`;
+
+  img.src = spinnerAnimation;
+
+  if (USERNAME_PROVIDERS.length > 0) {
+    queueRequest(async () => {
+      tryProviderList(USERNAME_PROVIDERS, username, img, showHat, size, cacheKey, 0);
+    });
+    return;
+  }
+
+  const cachedUuid = usernameCache.get(username);
+  if (cachedUuid !== undefined) {
+    if (cachedUuid === "") {
+      setImageSource(img, notFoundSprite);
+    } else {
+      renderUuidHead(cachedUuid, img, showHat, size);
+    }
+    return;
+  }
+
+  if (fetchTimers.has(username)) {
+    clearTimeout(fetchTimers.get(username));
+  }
+
+  const timer = window.setTimeout(() => {
+    queueRequest(async () => {
+      try {
+        const res = await fetchWithRetry(`${ASHCON_API}${username}`);
+        if (res.status === 404) {
+          usernameCache.set(username, "");
+          setImageSource(img, notFoundSprite);
+          return;
+        }
+
+        const data = await res.json();
+        const uuid = data.uuid;
+
+        usernameCache.set(username, uuid);
+        renderUuidHead(uuid, img, showHat, size);
+      } catch (e) {
+        console.warn(
+          `[MiniMessage Renderer] Failed to resolve username ${username}`,
+          e
+        );
+        setImageSource(img, errorSprite);
+      }
+    });
+  }, 300);
+
+  fetchTimers.set(username, timer);
+}
+
+function tryProviderList(
+  providers: HeadProvider[],
   identifier: string,
   img: HTMLImageElement,
   showHat: boolean,
@@ -123,23 +190,17 @@ function tryProviders(
   cacheKey: string,
   index: number
 ) {
-  if (index >= HEAD_PROVIDERS.length) {
+  if (index >= providers.length) {
     headCache.set(cacheKey, {
       state: "error",
       file: errorSprite,
       timestamp: Date.now()
     });
-    img.src = errorSprite;
+    setImageSource(img, errorSprite);
     return;
   }
 
-  const provider = HEAD_PROVIDERS[index];
-
-  if (!provider.supportsUsername && !uuidRegex.test(identifier)) {
-    tryProviders(identifier, img, showHat, size, cacheKey, index + 1);
-    return;
-  }
-
+  const provider = providers[index];
   const url = provider.getUrl(identifier, size, showHat);
   const image = new Image();
 
@@ -153,79 +214,26 @@ function tryProviders(
       file: url,
       timestamp: Date.now()
     });
-    img.src = url;
+    if (img.dataset.tintColor) {
+      tintImage(img, url, img.dataset.tintColor);
+    } else {
+      setImageSource(img, url);
+    }
 
-    console.info(
-      `[MiniMessage Renderer] Loaded head via ${provider.name}`
-    );
+    console.info(`[MiniMessage Head Renderer] Loaded head via ${provider.name}`);
   };
 
   image.onerror = () => {
     console.warn(
-      `[MiniMessage Renderer] ${provider.name} failed, trying fallback`
+      `[MiniMessage Head Renderer] ${provider.name} failed, trying fallback`
     );
-    tryProviders(identifier, img, showHat, size, cacheKey, index + 1);
+    tryProviderList(providers, identifier, img, showHat, size, cacheKey, index + 1);
   };
 
   image.src = url;
 }
 
 const ASHCON_API = "https://api.ashcon.app/mojang/v2/user/";
-
-function renderUsernameHead(
-  username: string,
-  img: HTMLImageElement,
-  showHat: boolean,
-  size: number
-) {
-  if (VzgeProvider.supportsUsername) {
-    renderHead(username, img, showHat, size);
-    return;
-  }
-
-  const cachedUuid = usernameCache.get(username);
-  if (cachedUuid !== undefined) {
-    if (cachedUuid === "") {
-      img.src = notFoundSprite;
-    } else {
-      renderHead(cachedUuid, img, showHat, size);
-    }
-    return;
-  }
-
-  img.src = spinnerAnimation;
-
-  if (fetchTimers.has(username)) {
-    clearTimeout(fetchTimers.get(username));
-  }
-
-  const timer = window.setTimeout(() => {
-    queueRequest(async () => {
-      try {
-        const res = await fetchWithRetry(`${ASHCON_API}${username}`);
-        if (res.status === 404) {
-          usernameCache.set(username, "");
-          img.src = notFoundSprite;
-          return;
-        }
-
-        const data = await res.json();
-        const uuid = data.uuid;
-
-        usernameCache.set(username, uuid);
-        renderHead(uuid, img, showHat, size);
-      } catch (e) {
-        console.warn(
-          `[MiniMessage Renderer] Failed to resolve username ${username}`,
-          e
-        );
-        img.src = errorSprite;
-      }
-    });
-  }, 300);
-
-  fetchTimers.set(username, timer);
-}
 
 async function fetchWithRetry(
   url: string,
@@ -259,4 +267,66 @@ export function intArrayToUUID(ints: number[]): string {
     hex.slice(16, 20) + "-" +
     hex.slice(20)
   );
+}
+
+function setImageSource(
+  img: HTMLImageElement,
+  src: string
+) {
+  const tint = img.dataset.tintColor;
+  if (!tint) {
+    img.src = src;
+    return;
+  }
+
+  tintImage(img, src, tint);
+}
+
+function tintImage(
+  img: HTMLImageElement,
+  textureUrl: string,
+  tintColor: string
+) {
+  if (img.dataset.tintApplied === "true") {
+    img.src = textureUrl;
+    return;
+  }
+
+  const base = new Image();
+  base.crossOrigin = "anonymous";
+  base.decoding = "async";
+  base.src = textureUrl;
+
+  base.onload = () => {
+    try {
+      const canvas = document.createElement("canvas");
+      canvas.width = base.naturalWidth || base.width;
+      canvas.height = base.naturalHeight || base.height;
+
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        img.src = textureUrl;
+        return;
+      }
+
+      ctx.drawImage(base, 0, 0);
+
+      ctx.globalCompositeOperation = "multiply";
+      ctx.fillStyle = tintColor;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      ctx.globalCompositeOperation = "destination-in";
+      ctx.drawImage(base, 0, 0);
+
+      img.dataset.tintApplied = "true";
+      img.src = canvas.toDataURL();
+    } catch {
+
+      img.src = textureUrl;
+    }
+  };
+
+  base.onerror = () => {
+    img.src = textureUrl;
+  };
 }
