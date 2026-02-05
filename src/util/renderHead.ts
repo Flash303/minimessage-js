@@ -29,8 +29,45 @@ const UUID_ONLY_PROVIDERS = HEAD_PROVIDERS.filter(p => !p.supportsUsername);
 
 const CACHE_EXPIRY_MS = 20 * 60 * 1000;
 
-const headCache = new Map<string, HeadCacheEntry>();
-const usernameCache = new Map<string, string>(); // username -> uuid ("" = not found)
+class LRUCache<K, V> {
+  private maxSize: number;
+  private map: Map<K, V>;
+
+  constructor(maxSize: number) {
+    this.maxSize = maxSize;
+    this.map = new Map();
+  }
+
+  get(key: K): V | undefined {
+    const value = this.map.get(key);
+    if (value === undefined) return undefined;
+    this.map.delete(key);
+    this.map.set(key, value);
+    return value;
+  }
+
+  set(key: K, value: V) {
+    if (this.map.has(key)) {
+      this.map.delete(key);
+    } else if (this.map.size >= this.maxSize) {
+      const oldestKey = this.map.keys().next().value!;
+      this.map.delete(oldestKey);
+    }
+    this.map.set(key, value);
+  }
+
+
+  has(key: K): boolean {
+    return this.map.has(key);
+  }
+}
+
+const HEAD_CACHE_LIMIT = 50;
+const USERNAME_CACHE_LIMIT = 50;
+
+const headCache = new LRUCache<string, HeadCacheEntry>(HEAD_CACHE_LIMIT);
+const tintedCache = new LRUCache<string, string>(HEAD_CACHE_LIMIT); // cacheKey -> dataURL
+const usernameCache = new LRUCache<string, string>(USERNAME_CACHE_LIMIT); // username -> uuid ("" = not found)
 const fetchTimers = new Map<string, number>();
 
 const REQUEST_QUEUE: (() => Promise<void>)[] = [];
@@ -60,21 +97,20 @@ export function getHeadElement(
   size = 16
 ): HTMLImageElement {
   const img = document.createElement("img");
-
   img.style.width = "1em";
   img.style.height = "1em";
   img.style.imageRendering = "pixelated";
   img.style.display = "inline-block";
-  img.style.verticalAlign = "-7%"
+  img.style.verticalAlign = "-7%";
 
   if (uuidRegex.test(identifier)) {
     renderUuidHead(identifier, img, showHat, size);
   } else if (playerNameRegex.test(identifier)) {
     renderUsernameHead(identifier, img, showHat, size);
   } else if (identifier.includes("/") || identifier.startsWith("minecraft:")) {
-    setImageSource(img, textureSprite)
+    setImageSource(img, textureSprite);
   } else {
-    setImageSource(img, errorSprite)
+    setImageSource(img, errorSprite);
   }
 
   return img;
@@ -107,7 +143,7 @@ function renderUuidHead(
     timestamp: Date.now()
   });
 
-  img.src = `${spinnerAnimation}?t=${Date.now()}`;
+  setImageSource(img, spinnerAnimation);
 
   if (fetchTimers.has(cacheKey)) {
     clearTimeout(fetchTimers.get(cacheKey));
@@ -130,14 +166,7 @@ function renderUsernameHead(
 ) {
   const cacheKey = `${username}:${showHat}:${size}:username`;
 
-  img.src = spinnerAnimation;
-
-  if (USERNAME_PROVIDERS.length > 0) {
-    queueRequest(async () => {
-      tryProviderList(USERNAME_PROVIDERS, username, img, showHat, size, cacheKey, 0);
-    });
-    return;
-  }
+  setImageSource(img, spinnerAnimation);
 
   const cachedUuid = usernameCache.get(username);
   if (cachedUuid !== undefined) {
@@ -146,6 +175,13 @@ function renderUsernameHead(
     } else {
       renderUuidHead(cachedUuid, img, showHat, size);
     }
+    return;
+  }
+
+  if (USERNAME_PROVIDERS.length > 0) {
+    queueRequest(async () => {
+      tryProviderList(USERNAME_PROVIDERS, username, img, showHat, size, cacheKey, 0);
+    });
     return;
   }
 
@@ -165,14 +201,10 @@ function renderUsernameHead(
 
         const data = await res.json();
         const uuid = data.uuid;
-
         usernameCache.set(username, uuid);
         renderUuidHead(uuid, img, showHat, size);
       } catch (e) {
-        console.warn(
-          `[MiniMessage Renderer] Failed to resolve username ${username}`,
-          e
-        );
+        console.warn(`[MiniMessage Renderer] Failed to resolve username ${username}`, e);
         setImageSource(img, errorSprite);
       }
     });
@@ -214,19 +246,12 @@ function tryProviderList(
       file: url,
       timestamp: Date.now()
     });
-    if (img.dataset.tintColor) {
-      tintImage(img, url, img.dataset.tintColor);
-    } else {
-      setImageSource(img, url);
-    }
-
+    setImageSource(img, url);
     console.info(`[MiniMessage Head Renderer] Loaded head via ${provider.name}`);
   };
 
   image.onerror = () => {
-    console.warn(
-      `[MiniMessage Head Renderer] ${provider.name} failed, trying fallback`
-    );
+    console.warn(`[MiniMessage Head Renderer] ${provider.name} failed, trying fallback`);
     tryProviderList(providers, identifier, img, showHat, size, cacheKey, index + 1);
   };
 
@@ -235,11 +260,7 @@ function tryProviderList(
 
 const ASHCON_API = "https://api.ashcon.app/mojang/v2/user/";
 
-async function fetchWithRetry(
-  url: string,
-  retries = 2,
-  delay = 300
-): Promise<Response> {
+async function fetchWithRetry(url: string, retries = 2, delay = 300): Promise<Response> {
   for (let i = 0; i <= retries; i++) {
     try {
       return await fetch(url, { cache: "force-cache" });
@@ -253,12 +274,9 @@ async function fetchWithRetry(
 
 export function intArrayToUUID(ints: number[]): string {
   if (ints.length !== 4) return "";
-
   const bytes = new Uint8Array(16);
   const view = new DataView(bytes.buffer);
-
   ints.forEach((v, i) => view.setInt32(i * 4, v));
-
   const hex = [...bytes].map(b => b.toString(16).padStart(2, "0")).join("");
   return (
     hex.slice(0, 8) + "-" +
@@ -269,24 +287,24 @@ export function intArrayToUUID(ints: number[]): string {
   );
 }
 
-function setImageSource(
-  img: HTMLImageElement,
-  src: string
-) {
+function setImageSource(img: HTMLImageElement, src: string) {
   const tint = img.dataset.tintColor;
+  const cacheKey = tint ? `${src}|${tint}` : src;
+
+  if (tint && tintedCache.has(cacheKey)) {
+    img.src = tintedCache.get(cacheKey)!;
+    return;
+  }
+
   if (!tint) {
     img.src = src;
     return;
   }
 
-  tintImage(img, src, tint);
+  tintImage(img, src, tint, cacheKey);
 }
 
-function tintImage(
-  img: HTMLImageElement,
-  textureUrl: string,
-  tintColor: string
-) {
+function tintImage(img: HTMLImageElement, textureUrl: string, tintColor: string, cacheKey: string) {
   if (img.dataset.tintApplied === "true") {
     img.src = textureUrl;
     return;
@@ -310,18 +328,17 @@ function tintImage(
       }
 
       ctx.drawImage(base, 0, 0);
-
       ctx.globalCompositeOperation = "multiply";
       ctx.fillStyle = tintColor;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
-
       ctx.globalCompositeOperation = "destination-in";
       ctx.drawImage(base, 0, 0);
 
+      const dataUrl = canvas.toDataURL();
+      tintedCache.set(cacheKey, dataUrl);
       img.dataset.tintApplied = "true";
-      img.src = canvas.toDataURL();
+      img.src = dataUrl;
     } catch {
-
       img.src = textureUrl;
     }
   };
