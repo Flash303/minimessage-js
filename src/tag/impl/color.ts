@@ -31,14 +31,17 @@ export class ColorTagResolver implements TagResolver {
 
         // Hex color
         if (name.charCodeAt(0) === 35) { // '#'
-            // #rgb → #rrggbb
-            if (name.length === 4) {
-                const r = name.charAt(1);
-                const g = name.charAt(2);
-                const b = name.charAt(3);
-                return `#${r}${r}${g}${g}${b}${b}`.toLowerCase();
+            const hex = name.substring(1);
+
+            const value = parseInt(hex, 16);
+
+            if (Number.isNaN(value)) {
+                return "#ffffff";
             }
-            return name.toLowerCase();
+
+            const clamped = value & 0xFFFFFF;
+
+            return "#" + clamped.toString(16).toUpperCase().padStart(6, "0");
         }
 
         const ret = COLOR_MAP[name];
@@ -53,7 +56,7 @@ export class ColorTagResolver implements TagResolver {
         // Hex colors: #rgb or #rrggbb
         if (name.charCodeAt(0) !== 35) return false; // '#'
 
-        if (name.length !== 4 && name.length !== 7) return false;
+        if (name.length > 7) return false;
 
         for (let i = 1; i < name.length; i++) {
             const c = name.charCodeAt(i);
