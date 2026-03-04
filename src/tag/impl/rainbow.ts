@@ -33,7 +33,7 @@ export class RainbowTagResolver implements TagResolver {
         return Tag.modify((component: Component) => {
             component.setColorByPlacement((delta) => {
                 delta = ((delta + phase) % 1);
-                if (reverse) delta = (1 - delta);
+                if (reverse) delta = (1 - delta) % 1;
 
                 const i: number = Math.floor(delta * 6);
                 const f: number = (delta * 6) - i;
