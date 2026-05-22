@@ -150,7 +150,10 @@ export class HtmlComponentRenderer extends AbstractComponentRenderer<HtmlWriter>
 
         // Shadow Color
         const shadowColor = component.shadowColor();
-        if (shadowColor) writer.style(HtmlStyle.textShadow(shadowColor.asHexString()));
+        if (shadowColor) {
+            writer.style(HtmlStyle.textShadow(shadowColor.asHexString()));
+            DomEffects.writeProperty(writer, "shadow", shadowColor.asHexString());
+        }
 
         // Hover Event
         const hover = component.hoverEvent();

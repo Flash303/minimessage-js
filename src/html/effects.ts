@@ -2,6 +2,7 @@ import {ObfuscatedDomEffect} from "./effects/obfuscated";
 import {HtmlWriter} from "./writer";
 import {ErrorInfo} from "../util/errors";
 import {PlayerHeadDomEffect} from "./effects/playerHead";
+import {ShadowDomEffect} from "./effects/shadow";
 import {Character} from "../util/char";
 import {MiscDomEffect} from "./effects/misc";
 
@@ -20,6 +21,7 @@ export interface DomEffect<D> {
 export type DomEffectMap = {
     [ObfuscatedDomEffect.TOKEN]: ObfuscatedDomEffect,
     [PlayerHeadDomEffect.TOKEN]: PlayerHeadDomEffect,
+    [ShadowDomEffect.TOKEN]: ShadowDomEffect,
     [MiscDomEffect.TOKEN]: MiscDomEffect,
 };
 
@@ -32,6 +34,7 @@ export namespace DomEffects {
     const MAP: DomEffectMap = {
         [ObfuscatedDomEffect.TOKEN]: ObfuscatedDomEffect.INSTANCE,
         [PlayerHeadDomEffect.TOKEN]: PlayerHeadDomEffect.INSTANCE,
+        [ShadowDomEffect.TOKEN]: ShadowDomEffect.INSTANCE,
         [MiscDomEffect.TOKEN]: MiscDomEffect.INSTANCE,
     };
 

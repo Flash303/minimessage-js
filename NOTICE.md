@@ -8,6 +8,6 @@ Licensed under the Apache License, Version 2.0.
 
 Modifications in this fork include, but are not limited to:
 - Rendering support for default Minecraft keybinds
-- Rendering support for sprite tinting
+- Rendering support for sprite tinting and shadows
 
 Some features originally developed in this fork have been contributed upstream and merged into the original project.

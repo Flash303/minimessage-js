@@ -16,7 +16,7 @@ intended to be a general-purpose drop-in replacement for the original project.
 
 Feature additions in this fork include:
 - Default keybind rendering
-- Render sprite tinting
+- Render sprite tinting and shadows
 
 Changes are made based on the needs of the Baggel editor.
 For editor-related feature requests or issues, please open an issue at:
