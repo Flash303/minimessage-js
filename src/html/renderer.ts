@@ -12,6 +12,7 @@ import {KeybindComponent} from "../text/component/keybind";
 import {ObjectComponent} from "../text/component/object";
 import {DomEffects} from "./effects";
 import {assertNever} from "../util/assertions";
+import {KEYBIND_TO_LITERAL, KEYBIND_TO_TRANSLATABLE} from "../data/defaultKeybinds";
 
 //
 
@@ -74,7 +75,8 @@ export class HtmlComponentRenderer extends AbstractComponentRenderer<HtmlWriter>
     protected renderKeybind(component: KeybindComponent, writer: HtmlWriter): Component {
         this._open(component, writer);
         DomEffects.writeProperty(writer, "misc", component);
-        writer.content(component.keybind());
+        const key = component.keybind();
+        writer.content(KEYBIND_TO_LITERAL[key] ?? KEYBIND_TO_TRANSLATABLE[key] ?? key);
         this._close(component, writer);
         return component;
     }
