@@ -1,5 +1,5 @@
 import {Component, TextDecoration} from "../text";
-import {HoverEvent} from "../text/style";
+import {ClickEvent, HoverEvent} from "../text/style";
 import {AbstractComponentRenderer} from "../text/renderer";
 import {HtmlWriter} from "./writer";
 import {HtmlStyle} from "./style";
@@ -41,6 +41,49 @@ export class HtmlComponentRenderer extends AbstractComponentRenderer<HtmlWriter>
             if (count !== 1) text += ` x${count}`;
             writer.property("data-mc-tooltip", `<span>${text}</span>`);
         });
+        return handlers;
+    })();
+
+    private static readonly CLICK_EVENT_RENDERER = (() => {
+        const handlers = new ClickEvent.Handlers<{ writer: HtmlWriter}, void>();
+
+        handlers.register(ClickEvent.Action.OPEN_URL, (event, { writer }) => {
+            writer.property("data-mc-click-action", "open_url");
+            writer.property("data-mc-click-value", event.payload().value());
+        })
+
+        handlers.register(ClickEvent.Action.OPEN_FILE, (event, { writer }) => {
+            writer.property("data-mc-click-action", "open_file");
+            writer.property("data-mc-click-value", event.payload().value());
+        })
+
+        handlers.register(ClickEvent.Action.RUN_COMMAND, (event, { writer }) => {
+            writer.property("data-mc-click-action", "run_command");
+            writer.property("data-mc-click-value", event.payload().value());
+        })
+
+        handlers.register(ClickEvent.Action.SUGGEST_COMMAND, (event, { writer }) => {
+            writer.property("data-mc-click-action", "suggest_command");
+            writer.property("data-mc-click-value", event.payload().value());
+        })
+
+        handlers.register(ClickEvent.Action.CHANGE_PAGE, (event, { writer }) => {
+            writer.property("data-mc-click-action", "change_page");
+            writer.property("data-mc-click-value", event.payload().integer().toString());
+        })
+
+        handlers.register(ClickEvent.Action.COPY_TO_CLIPBOARD, (event, { writer }) => {
+            writer.property("data-mc-click-action", "copy_to_clipboard");
+            writer.property("data-mc-click-value", event.payload().value());
+        })
+
+        handlers.register(ClickEvent.Action.CUSTOM, (event, { writer }) => {
+            writer.property("data-mc-click-action", "custom");
+            writer.property("data-mc-click-value", event.payload().key().toString());
+            const nbt = event.payload().nbt();
+            if (nbt !== null) writer.property("data-mc-click-nbt", nbt);
+        })
+
         return handlers;
     })();
 
@@ -162,6 +205,10 @@ export class HtmlComponentRenderer extends AbstractComponentRenderer<HtmlWriter>
         // Hover Event
         const hover = component.hoverEvent();
         if (hover) HtmlComponentRenderer.HOVER_EVENT_RENDERER.invoke(hover, { writer, renderer: this });
+
+        // Click Event
+        const click = component.clickEvent();
+        if (click) HtmlComponentRenderer.CLICK_EVENT_RENDERER.invoke(click, { writer });
     }
 
     private _close(component: Component, writer: HtmlWriter): void {
