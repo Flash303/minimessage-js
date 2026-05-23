@@ -3,7 +3,6 @@ import {HoverEvent} from "../text/style";
 import {AbstractComponentRenderer} from "../text/renderer";
 import {HtmlWriter} from "./writer";
 import {HtmlStyle} from "./style";
-import {PlainTextComponentSerializer} from "../serializer";
 import {Translations} from "../i18n";
 import {TextComponent} from "../text/component/text";
 import {TranslatableComponent} from "../text/component/translatable";
@@ -19,23 +18,28 @@ import {KEYBIND_TO_LITERAL, KEYBIND_TO_TRANSLATABLE} from "../data/defaultKeybin
 export class HtmlComponentRenderer extends AbstractComponentRenderer<HtmlWriter> {
 
     private static readonly HOVER_EVENT_RENDERER = (() => {
-        const handlers = new HoverEvent.Handlers<HtmlWriter, void>();
-        handlers.register(HoverEvent.Action.SHOW_TEXT, (event, context) => {
-            const text = PlainTextComponentSerializer.plainText().serialize(event.value());
-            context.property("title", text);
+        const handlers = new HoverEvent.Handlers<{ writer: HtmlWriter, renderer: HtmlComponentRenderer }, void>();
+        
+        handlers.register(HoverEvent.Action.SHOW_TEXT, (event, { writer, renderer }) => {
+            const inner = HtmlWriter.string();
+            renderer.render(event.value(), inner);
+            writer.property("data-mc-tooltip", inner.toString());
         });
-        handlers.register(HoverEvent.Action.SHOW_ENTITY, (event, context) => {
+        handlers.register(HoverEvent.Action.SHOW_ENTITY, (event, { writer, renderer }) => {
             const name = event.value().name();
-            const text = name !== null ?
-                PlainTextComponentSerializer.plainText().serialize(name) :
-                event.value().type();
-            context.property("title", text);
+            const inner = HtmlWriter.string();
+            if (name !== null) {
+                renderer.render(name, inner);
+            } else {
+                inner.openTag("span").content(event.value().type()).closeTag();
+            }
+            writer.property("data-mc-tooltip", inner.toString());
         });
-        handlers.register(HoverEvent.Action.SHOW_ITEM, (event, context) => {
-            let text: string = event.value().item().asString();
+        handlers.register(HoverEvent.Action.SHOW_ITEM, (event, { writer }) => {
+            let text = event.value().item().asString();
             const count = event.value().count();
             if (count !== 1) text += ` x${count}`;
-            context.property("title", text);
+            writer.property("data-mc-tooltip", `<span>${text}</span>`);
         });
         return handlers;
     })();
@@ -157,7 +161,7 @@ export class HtmlComponentRenderer extends AbstractComponentRenderer<HtmlWriter>
 
         // Hover Event
         const hover = component.hoverEvent();
-        if (hover) HtmlComponentRenderer.HOVER_EVENT_RENDERER.invoke(hover, writer);
+        if (hover) HtmlComponentRenderer.HOVER_EVENT_RENDERER.invoke(hover, { writer, renderer: this });
     }
 
     private _close(component: Component, writer: HtmlWriter): void {

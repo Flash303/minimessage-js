@@ -21,7 +21,8 @@ export {
 
 export {
     HtmlWriter,
-    HtmlComponentRenderer
+    HtmlComponentRenderer,
+    DomEffects
 } from "./html";
 
 export {
