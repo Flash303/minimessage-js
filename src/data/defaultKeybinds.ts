@@ -20,19 +20,39 @@ export const KEYBIND_TO_TRANSLATABLE: Record<string, string> = {
 
 // Fallback if translatable isn't present
 export const KEYBIND_TO_LITERAL: Record<string, string> = {
-  "key.forward": "W",
-  "key.back": "S",
+  // movement
+  "key.jump": "Space",
+  "key.sneak": "Left Shift",
+  "key.sprint": "Left Control",
   "key.left": "A",
   "key.right": "D",
-  "key.jump": "Space",
-  "key.sneak": "Shift",
-  "key.sprint": "Control",
-  "key.attack": "Left Click",
-  "key.use": "Right Click",
-  "key.pickItem": "Middle Click",
+  "key.back": "S",
+  "key.forward": "W",
+
+  // miscellaneous
+  "key.advancements": "L",
+  "key.quickActions": "G",
+  "key.screenshot": "F2",
+  "key.smoothCamera": "Not Bound",
+  "key.fullscreen": "F11",
+  "key.toggleGui": "F1",
+  "key.togglePerspective": "F5",
+  "key.toggleSpectatorShaderEffects": "F4",
+
+  // multiplayer
+  "key.friends": "O",
+  "key.playerlist": "Tab",
+  "key.chat": "T",
+  "key.command": "/",
+  "key.socialInteractions": "P",
+
+  // gameplay
+  "key.attack": "Left Button",
+  "key.pickItem": "Middle Button",
+  "key.use": "Right Button",
+
+  // inventory
   "key.drop": "Q",
-  "key.inventory": "E",
-  "key.swapOffhand": "F",
   "key.hotbar.1": "1",
   "key.hotbar.2": "2",
   "key.hotbar.3": "3",
@@ -42,11 +62,37 @@ export const KEYBIND_TO_LITERAL: Record<string, string> = {
   "key.hotbar.7": "7",
   "key.hotbar.8": "8",
   "key.hotbar.9": "9",
+  "key.inventory": "E",
+  "key.swapOffhand": "F",
+
+  // creative mode
   "key.loadToolbarActivator": "X",
   "key.saveToolbarActivator": "C",
-  "key.chat": "T",
-  "key.socialInteractions": "P",
-  "key.advancements": "L",
-  "key.command": "-", // "key.keyboard.unknown" resolves to "-"
-  "key.spectatorOutlines": "-", // "key.keyboard.unknown" resolves to "-"
+
+  // spectator
+  "key.spectatorOutlines": "Not Bound",
+  "key.spectatorHotbar": "Middle Button",
+
+  // debug
+  "key.debug.overlay": "F3",
+  "key.debug.modifier": "F3",
+  "key.debug.clearChat": "D",
+  "key.debug.copyRecreateCommand": "I",
+  "key.debug.copyLocation": "C",
+  "key.debug.spectate": "N",
+  "key.debug.crash": "C",
+  "key.debug.debugOptions": "F6",
+  "key.debug.dumpDynamicTextures": "S",
+  "key.debug.dumpVersion": "V",
+  "key.debug.switchGameMode": "F4",
+  "key.debug.reloadChunk": "A",
+  "key.debug.reloadResourcePacks": "T",
+  "key.debug.showAdvancedTooltips": "H",
+  "key.debug.showHitboxes": "B",
+  "key.debug.profiling": "L",
+  "key.debug.focusPause": "P",
+  "key.debug.profilingChart": "1",
+  "key.debug.fpsCharts": "2",
+  "key.debug.networkCharts": "3",
+
 };
