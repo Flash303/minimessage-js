@@ -209,6 +209,10 @@ export class HtmlComponentRenderer extends AbstractComponentRenderer<HtmlWriter>
         // Click Event
         const click = component.clickEvent();
         if (click) HtmlComponentRenderer.CLICK_EVENT_RENDERER.invoke(click, { writer });
+
+        // Insertion
+        const insertion = component.insertion();
+        if (insertion) writer.property("data-mc-insertion", insertion);
     }
 
     private _close(component: Component, writer: HtmlWriter): void {

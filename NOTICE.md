@@ -7,7 +7,9 @@ Copyright 2024 Wasabi Codes
 Licensed under the Apache License, Version 2.0.
 
 Modifications in this fork include, but are not limited to:
-- Rendering support for default Minecraft keybinds
-- Rendering support for sprite tinting and shadows
+- Default keybind rendering
+- Render sprite tinting and shadows
+- Render Hover tag data
+- Render click & insertion tag data
 
 Some features originally developed in this fork have been contributed upstream and merged into the original project.
